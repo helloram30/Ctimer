@@ -9,6 +9,7 @@ package com.ctimer.model;
  * @param activePlayer side currently counting down
  * @param lastSwitchEpochMs epoch timestamp when active player started running
  * @param running true when the game is live
+ * @param gameOver true when the room game is finished
  * @param readyToStart true when both players are present and start is allowed
  * @param incrementMs increment added after each valid press
  * @param whiteJoined true when a white-side player is connected to the room
@@ -22,6 +23,7 @@ public record RoomSnapshot(
         PlayerColor activePlayer,
         long lastSwitchEpochMs,
         boolean running,
+        boolean gameOver,
         boolean readyToStart,
         long incrementMs,
         boolean whiteJoined,

@@ -99,6 +99,24 @@ public class ChessClockService {
     }
 
     /**
+     * Reconnects an existing client to a room using the previously assigned color.
+     *
+     * @param roomCode room code to reconnect
+     * @param player previously assigned color
+     * @return room session response containing assigned color and snapshot
+     */
+    public synchronized RoomSessionResponse reconnectRoom(String roomCode, PlayerColor player) {
+        final RoomState state = getRequiredRoom(roomCode);
+        if (player == PlayerColor.WHITE && !state.whiteJoined) {
+            throw new IllegalArgumentException("WHITE is not assigned in this room.");
+        }
+        if (player == PlayerColor.BLACK && !state.blackJoined) {
+            throw new IllegalArgumentException("BLACK is not assigned in this room.");
+        }
+        return new RoomSessionResponse(state.roomCode, player, toSnapshot(state));
+    }
+
+    /**
      * Returns the current room snapshot.
      *
      * @param roomCode room code to read
@@ -119,6 +137,11 @@ public class ChessClockService {
      */
     public synchronized RoomSnapshot startGame(String roomCode, PlayerColor player) {
         final RoomState state = getRequiredRoom(roomCode);
+
+        if (state.gameOver) {
+            state.statusMessage = "Game is over. Create a new room.";
+            return toSnapshot(state);
+        }
 
         if (player != PlayerColor.BLACK) {
             state.statusMessage = "Only BLACK can start the game";
@@ -144,6 +167,27 @@ public class ChessClockService {
     }
 
     /**
+     * Marks a room game as over by player request.
+     *
+     * @param roomCode room code to end
+     * @param player side requesting game over
+     * @return updated room snapshot
+     */
+    public synchronized RoomSnapshot endGame(String roomCode, PlayerColor player) {
+        final RoomState state = getRequiredRoom(roomCode);
+        if (!isPlayerAssigned(state, player)) {
+            throw new IllegalArgumentException("Player is not assigned to this room.");
+        }
+        if (state.gameOver) {
+            return toSnapshot(state);
+        }
+        state.running = false;
+        state.gameOver = true;
+        state.statusMessage = "Game over by " + player;
+        return toSnapshot(state);
+    }
+
+    /**
      * Applies a clock press to a room.
      *
      * @param roomCode room code to update
@@ -155,6 +199,10 @@ public class ChessClockService {
         final RoomState state = getRequiredRoom(roomCode);
 
         applyElapsed(state, now);
+        if (state.gameOver) {
+            return toSnapshot(state);
+        }
+
         if (!state.running) {
             if (state.whiteJoined && state.blackJoined) {
                 state.statusMessage = "Game not started. BLACK press Start";
@@ -218,6 +266,7 @@ public class ChessClockService {
             state.whiteRemainingMs = Math.max(0, state.whiteRemainingMs);
             state.blackRemainingMs = Math.max(0, state.blackRemainingMs);
             state.running = false;
+            state.gameOver = true;
             state.statusMessage = state.whiteRemainingMs == 0 ? "WHITE flagged" : "BLACK flagged";
         }
     }
@@ -236,12 +285,24 @@ public class ChessClockService {
                 state.activePlayer,
                 state.lastSwitchEpochMs,
                 state.running,
-                state.whiteJoined && state.blackJoined && !state.running,
+                state.gameOver,
+                state.whiteJoined && state.blackJoined && !state.running && !state.gameOver,
                 state.incrementMs,
                 state.whiteJoined,
                 state.blackJoined,
                 state.statusMessage
         );
+    }
+
+    /**
+     * Checks if a player color is assigned in the room.
+     *
+     * @param state room state
+     * @param player player color
+     * @return true when player is assigned in room
+     */
+    private boolean isPlayerAssigned(RoomState state, PlayerColor player) {
+        return player == PlayerColor.WHITE ? state.whiteJoined : state.blackJoined;
     }
 
     /**
@@ -294,6 +355,7 @@ public class ChessClockService {
         private PlayerColor activePlayer;
         private long lastSwitchEpochMs;
         private boolean running;
+        private boolean gameOver;
         private long incrementMs;
         private boolean whiteJoined;
         private boolean blackJoined;

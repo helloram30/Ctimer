@@ -21,6 +21,8 @@ A simple room-based chess timer web app with:
 3. Player 2 joins using that code and is assigned the remaining color.
 4. When both players have joined, Black presses `Start`.
 5. Timer begins with White running first.
+6. If a device refreshes, the player auto-reconnects to the same room and color.
+7. Either player can end the game with `Game Over`, then create a new room.
 
 Both players always see both clocks. Only the active player can press their own clock.
 
@@ -29,6 +31,8 @@ Both players always see both clocks. Only the active player can press their own 
 - `POST /api/rooms/create`
 - `POST /api/rooms/join`
 - `POST /api/rooms/start`
+- `POST /api/rooms/reconnect`
+- `POST /api/rooms/game-over`
 - `GET /api/rooms/{roomCode}/state`
 - STOMP publish: `/app/clock.press`
 - STOMP subscribe: `/topic/room/{roomCode}/clock`

@@ -11,6 +11,7 @@ type RoomSnapshot = {
   activePlayer: PlayerColor;
   lastSwitchEpochMs: number;
   running: boolean;
+  gameOver: boolean;
   readyToStart: boolean;
   incrementMs: number;
   whiteJoined: boolean;
@@ -30,6 +31,8 @@ type DisplayTimes = {
 };
 
 const API_BASE_URL = "http://localhost:8080";
+const STORAGE_ROOM_CODE_KEY = "ctimer_room_code";
+const STORAGE_PLAYER_COLOR_KEY = "ctimer_player_color";
 
 /**
  * Calculates display times using the latest snapshot and local current time.
@@ -121,10 +124,48 @@ async function joinRoom(roomCode: string): Promise<RoomSessionResponse> {
 }
 
 /**
+ * Reconnects a client to a room using its previous color.
+ */
+async function reconnectRoom(roomCode: string, player: PlayerColor): Promise<RoomSessionResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/rooms/reconnect`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ roomCode, player })
+  });
+
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response));
+  }
+
+  return (await response.json()) as RoomSessionResponse;
+}
+
+/**
  * Starts a room game from the black side.
  */
 async function startGame(roomCode: string, player: PlayerColor): Promise<RoomSnapshot> {
   const response = await fetch(`${API_BASE_URL}/api/rooms/start`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ roomCode, player })
+  });
+
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response));
+  }
+
+  return (await response.json()) as RoomSnapshot;
+}
+
+/**
+ * Ends a room game manually.
+ */
+async function gameOver(roomCode: string, player: PlayerColor): Promise<RoomSnapshot> {
+  const response = await fetch(`${API_BASE_URL}/api/rooms/game-over`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
@@ -164,6 +205,32 @@ export default function App(): JSX.Element {
   const [joinCode, setJoinCode] = useState<string>("");
   const [errorMessage, setErrorMessage] = useState<string>("");
   const clientRef = useRef<Client | null>(null);
+
+  useEffect(() => {
+    const storedRoomCode = localStorage.getItem(STORAGE_ROOM_CODE_KEY);
+    const storedColor = localStorage.getItem(STORAGE_PLAYER_COLOR_KEY);
+    if (!storedRoomCode || !storedColor) {
+      return;
+    }
+
+    const normalizedColor = storedColor === "WHITE" || storedColor === "BLACK" ? storedColor : null;
+    if (!normalizedColor) {
+      localStorage.removeItem(STORAGE_ROOM_CODE_KEY);
+      localStorage.removeItem(STORAGE_PLAYER_COLOR_KEY);
+      return;
+    }
+
+    reconnectRoom(storedRoomCode, normalizedColor)
+      .then((response) => {
+        setRoomCode(response.roomCode);
+        setMyColor(response.assignedColor);
+        setSnapshot(response.snapshot);
+      })
+      .catch(() => {
+        localStorage.removeItem(STORAGE_ROOM_CODE_KEY);
+        localStorage.removeItem(STORAGE_PLAYER_COLOR_KEY);
+      });
+  }, []);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -232,6 +299,8 @@ export default function App(): JSX.Element {
       setRoomCode(response.roomCode);
       setMyColor(response.assignedColor);
       setSnapshot(response.snapshot);
+      localStorage.setItem(STORAGE_ROOM_CODE_KEY, response.roomCode);
+      localStorage.setItem(STORAGE_PLAYER_COLOR_KEY, response.assignedColor);
       setErrorMessage("");
     } catch (error) {
       setErrorMessage((error as Error).message);
@@ -245,6 +314,8 @@ export default function App(): JSX.Element {
       setRoomCode(response.roomCode);
       setMyColor(response.assignedColor);
       setSnapshot(response.snapshot);
+      localStorage.setItem(STORAGE_ROOM_CODE_KEY, response.roomCode);
+      localStorage.setItem(STORAGE_PLAYER_COLOR_KEY, response.assignedColor);
       setErrorMessage("");
     } catch (error) {
       setErrorMessage((error as Error).message);
@@ -280,6 +351,29 @@ export default function App(): JSX.Element {
       destination: "/app/clock.press",
       body: JSON.stringify({ roomCode, player })
     });
+  };
+
+  const handleGameOver = async (): Promise<void> => {
+    if (!roomCode || !myColor) {
+      return;
+    }
+    try {
+      const updated = await gameOver(roomCode, myColor);
+      setSnapshot(updated);
+      setErrorMessage("");
+    } catch (error) {
+      setErrorMessage((error as Error).message);
+    }
+  };
+
+  const handleNewRoom = (): void => {
+    localStorage.removeItem(STORAGE_ROOM_CODE_KEY);
+    localStorage.removeItem(STORAGE_PLAYER_COLOR_KEY);
+    setSnapshot(null);
+    setMyColor(null);
+    setRoomCode("");
+    setJoinCode("");
+    setErrorMessage("");
   };
 
   if (!roomCode || !myColor || !snapshot) {
@@ -373,9 +467,13 @@ export default function App(): JSX.Element {
         <p>
           Players: White {snapshot.whiteJoined ? "joined" : "waiting"} | Black {snapshot.blackJoined ? "joined" : "waiting"}
         </p>
-        <button onClick={handleStart} disabled={!snapshot.readyToStart || myColor !== "BLACK"}>
+        <button onClick={handleStart} disabled={!snapshot.readyToStart || myColor !== "BLACK" || snapshot.gameOver}>
           Start (Black)
         </button>
+        <button onClick={handleGameOver} disabled={!snapshot.running || snapshot.gameOver}>
+          Game Over
+        </button>
+        {snapshot.gameOver ? <button onClick={handleNewRoom}>New Room</button> : null}
       </section>
 
       {errorMessage ? <p className="error">{errorMessage}</p> : null}

@@ -2,8 +2,10 @@ package com.ctimer.controller;
 
 import com.ctimer.model.ClockPressRequest;
 import com.ctimer.model.CreateRoomRequest;
+import com.ctimer.model.GameOverRequest;
 import com.ctimer.model.JoinRoomRequest;
 import com.ctimer.model.PlayerColor;
+import com.ctimer.model.ReconnectRoomRequest;
 import com.ctimer.model.RoomSessionResponse;
 import com.ctimer.model.RoomSnapshot;
 import com.ctimer.model.StartGameRequest;
@@ -73,6 +75,21 @@ public class ClockController {
     }
 
     /**
+     * Reconnects a player to a room after a page refresh.
+     *
+     * @param request reconnect request
+     * @return room session response
+     */
+    @PostMapping("/api/rooms/reconnect")
+    public RoomSessionResponse reconnectRoom(@RequestBody ReconnectRoomRequest request) {
+        final RoomSessionResponse response = chessClockService.reconnectRoom(
+                request.roomCode(),
+                PlayerColor.fromValue(request.player())
+        );
+        return response;
+    }
+
+    /**
      * Starts a room game. Only BLACK is allowed to start.
      *
      * @param request start game request
@@ -81,6 +98,22 @@ public class ClockController {
     @PostMapping("/api/rooms/start")
     public RoomSnapshot startRoom(@RequestBody StartGameRequest request) {
         final RoomSnapshot updated = chessClockService.startGame(
+                request.roomCode(),
+                PlayerColor.fromValue(request.player())
+        );
+        broadcastSnapshot(updated);
+        return updated;
+    }
+
+    /**
+     * Ends a room game manually and marks it as complete.
+     *
+     * @param request game over request
+     * @return updated room snapshot
+     */
+    @PostMapping("/api/rooms/game-over")
+    public RoomSnapshot gameOver(@RequestBody GameOverRequest request) {
+        final RoomSnapshot updated = chessClockService.endGame(
                 request.roomCode(),
                 PlayerColor.fromValue(request.player())
         );
