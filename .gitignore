@@ -1,0 +1,15 @@
+# Gradle
+.gradle/
+**/build/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
