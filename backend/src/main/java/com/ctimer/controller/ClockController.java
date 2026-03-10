@@ -133,6 +133,22 @@ public class ClockController {
     }
 
     /**
+     * Applies a clock press over HTTP when the client cannot use WebSocket messaging.
+     *
+     * @param request press payload
+     * @return updated room snapshot
+     */
+    @PostMapping("/api/rooms/press")
+    public RoomSnapshot pressClockHttp(@RequestBody ClockPressRequest request) {
+        final RoomSnapshot updated = chessClockService.pressClock(
+                request.roomCode(),
+                PlayerColor.fromValue(request.player())
+        );
+        broadcastSnapshot(updated);
+        return updated;
+    }
+
+    /**
      * Handles clock press events from WebSocket clients and broadcasts updates.
      *
      * @param request socket press payload

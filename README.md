@@ -41,10 +41,17 @@ Both players always see both clocks. Only the active player can press their own 
 
 ```bash
 cd backend
-gradle bootRun
+./gradlew bootRun
 ```
 
 Backend runs on `http://localhost:8080`.
+
+If startup fails with `Port 8080 was already in use`, either stop the process using that port or run the backend on a different port:
+
+```bash
+cd backend
+./gradlew bootRun --args='--server.port=8081'
+```
 
 ## Run Frontend
 
@@ -55,3 +62,6 @@ npm run dev
 ```
 
 Frontend runs on `http://localhost:5173`.
+
+Open `http://localhost:5173` in the browser for the UI.
+Do not open [frontend/index.html](/Users/ram/Documents/VS_Code/Ctimer/frontend/index.html) directly from the filesystem, and do not expect the UI on `http://localhost:8080`; port `8080` is the backend API/WebSocket server only.

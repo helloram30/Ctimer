@@ -1,6 +1,5 @@
-import { Client, IMessage } from "@stomp/stompjs";
-import SockJS from "sockjs-client";
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { Client, IMessage } from "@stomp/stompjs";
 
 type PlayerColor = "WHITE" | "BLACK";
 
@@ -181,6 +180,25 @@ async function gameOver(roomCode: string, player: PlayerColor): Promise<RoomSnap
 }
 
 /**
+ * Applies a clock press over HTTP.
+ */
+async function pressClock(roomCode: string, player: PlayerColor): Promise<RoomSnapshot> {
+  const response = await fetch(`${API_BASE_URL}/api/rooms/press`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ roomCode, player })
+  });
+
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response));
+  }
+
+  return (await response.json()) as RoomSnapshot;
+}
+
+/**
  * Fetches the latest room state.
  */
 async function fetchRoomState(roomCode: string): Promise<RoomSnapshot> {
@@ -204,6 +222,7 @@ export default function App(): JSX.Element {
   const [createColor, setCreateColor] = useState<PlayerColor>("WHITE");
   const [joinCode, setJoinCode] = useState<string>("");
   const [errorMessage, setErrorMessage] = useState<string>("");
+  const [socketConnected, setSocketConnected] = useState<boolean>(false);
   const clientRef = useRef<Client | null>(null);
 
   useEffect(() => {
@@ -248,41 +267,75 @@ export default function App(): JSX.Element {
     }
 
     let isMounted = true;
-    fetchRoomState(roomCode)
-      .then((state) => {
-        if (isMounted) {
-          setSnapshot(state);
+    let shouldDispose = false;
+    let activeClient: Client | null = null;
+    const pollRoomState = (): void => {
+      fetchRoomState(roomCode)
+        .then((state) => {
+          if (isMounted) {
+            setSnapshot(state);
+          }
+        })
+        .catch((error: Error) => {
+          if (isMounted) {
+            setErrorMessage(error.message);
+          }
+        });
+    };
+
+    pollRoomState();
+    const pollIntervalId = window.setInterval(pollRoomState, 500);
+
+    void Promise.all([import("@stomp/stompjs"), import("sockjs-client")])
+      .then(([stompModule, sockJsModule]) => {
+        if (shouldDispose) {
+          return;
         }
+
+        const StompClient = stompModule.Client;
+        const SockJsClient = sockJsModule.default;
+        const stompClient = new StompClient({
+          webSocketFactory: () => new SockJsClient(`${API_BASE_URL}/ws`),
+          reconnectDelay: 2000,
+          onConnect: () => {
+            setSocketConnected(true);
+            stompClient.subscribe(`/topic/room/${roomCode}/clock`, (message: IMessage) => {
+              const payload = JSON.parse(message.body) as RoomSnapshot;
+              setSnapshot(payload);
+              setNowMs(Date.now());
+              setErrorMessage("");
+            });
+          },
+          onWebSocketClose: () => {
+            setSocketConnected(false);
+          },
+          onWebSocketError: () => {
+            setSocketConnected(false);
+          },
+          onStompError: () => {
+            setSocketConnected(false);
+          }
+        });
+
+        activeClient = stompClient;
+        clientRef.current = stompClient;
+        stompClient.activate();
       })
-      .catch((error: Error) => {
+      .catch(() => {
         if (isMounted) {
-          setErrorMessage(error.message);
+          setSocketConnected(false);
         }
       });
 
-    const stompClient = new Client({
-      webSocketFactory: () => new SockJS(`${API_BASE_URL}/ws`),
-      reconnectDelay: 2000,
-      onConnect: () => {
-        stompClient.subscribe(`/topic/room/${roomCode}/clock`, (message: IMessage) => {
-          const payload = JSON.parse(message.body) as RoomSnapshot;
-          setSnapshot(payload);
-          setNowMs(Date.now());
-          setErrorMessage("");
-        });
-      },
-      onStompError: () => {
-        setErrorMessage("WebSocket error occurred.");
-      }
-    });
-
-    stompClient.activate();
-    clientRef.current = stompClient;
-
     return () => {
       isMounted = false;
-      clientRef.current?.deactivate();
-      clientRef.current = null;
+      shouldDispose = true;
+      setSocketConnected(false);
+      window.clearInterval(pollIntervalId);
+      activeClient?.deactivate();
+      if (clientRef.current === activeClient) {
+        clientRef.current = null;
+      }
     };
   }, [roomCode]);
 
@@ -337,20 +390,28 @@ export default function App(): JSX.Element {
     }
   };
 
-  const handleClockPress = (player: PlayerColor): void => {
+  const handleClockPress = async (player: PlayerColor): Promise<void> => {
     if (!roomCode) {
       return;
     }
 
-    if (!clientRef.current?.connected) {
-      setErrorMessage("WebSocket is not connected.");
+    if (clientRef.current?.connected) {
+      clientRef.current.publish({
+        destination: "/app/clock.press",
+        body: JSON.stringify({ roomCode, player })
+      });
+      setErrorMessage("");
       return;
     }
 
-    clientRef.current.publish({
-      destination: "/app/clock.press",
-      body: JSON.stringify({ roomCode, player })
-    });
+    try {
+      const updated = await pressClock(roomCode, player);
+      setSnapshot(updated);
+      setNowMs(Date.now());
+      setErrorMessage("");
+    } catch (error) {
+      setErrorMessage((error as Error).message);
+    }
   };
 
   const handleGameOver = async (): Promise<void> => {
@@ -467,13 +528,23 @@ export default function App(): JSX.Element {
         <p>
           Players: White {snapshot.whiteJoined ? "joined" : "waiting"} | Black {snapshot.blackJoined ? "joined" : "waiting"}
         </p>
-        <button onClick={handleStart} disabled={!snapshot.readyToStart || myColor !== "BLACK" || snapshot.gameOver}>
+        <p className="helper-text">Live sync: {socketConnected ? "connected" : "HTTP fallback mode"}</p>
+        <p className="helper-text">Tap your active clock after each move. Only the active player can press their side.</p>
+        <button
+          className="action-button"
+          onClick={handleStart}
+          disabled={!snapshot.readyToStart || myColor !== "BLACK" || snapshot.gameOver}
+        >
           Start (Black)
         </button>
-        <button onClick={handleGameOver} disabled={!snapshot.running || snapshot.gameOver}>
+        <button className="action-button secondary-button" onClick={handleGameOver} disabled={!snapshot.running || snapshot.gameOver}>
           Game Over
         </button>
-        {snapshot.gameOver ? <button onClick={handleNewRoom}>New Room</button> : null}
+        {snapshot.gameOver ? (
+          <button className="action-button" onClick={handleNewRoom}>
+            New Room
+          </button>
+        ) : null}
       </section>
 
       {errorMessage ? <p className="error">{errorMessage}</p> : null}

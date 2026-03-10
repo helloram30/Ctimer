@@ -94,12 +94,29 @@ button:disabled {
   border: 2px solid #d1d5db;
   border-radius: 12px;
   background: #ffffff;
+  color: #111827;
   text-align: left;
   padding: 1.2rem;
+  width: 100%;
+  min-height: 220px;
+  display: grid;
+  align-content: center;
+  gap: 0.6rem;
 }
 
 .clock-card.active {
   border-color: #0f766e;
+  background: #ecfeff;
+  box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.12);
+}
+
+.clock-card:disabled {
+  opacity: 1;
+}
+
+.clock-card:disabled:not(.active) {
+  background: #f8fafc;
+  color: #475569;
 }
 
 .label {
@@ -110,16 +127,40 @@ button:disabled {
 }
 
 .time {
-  font-size: 2.4rem;
+  font-size: clamp(2.8rem, 8vw, 4.8rem);
   font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 .error {
   color: #b91c1c;
 }
 
+.helper-text {
+  color: #475569;
+}
+
+.action-button {
+  margin-right: 0.75rem;
+  margin-top: 0.2rem;
+}
+
+.secondary-button {
+  background: #334155;
+}
+
 @media (max-width: 640px) {
+  .page {
+    padding: 0.8rem;
+  }
+
   .clock-grid {
     grid-template-columns: 1fr;
+  }
+
+  .clock-card {
+    min-height: 180px;
+    padding: 1rem;
   }
 }
