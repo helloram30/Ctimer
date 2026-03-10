@@ -1,25 +1,37 @@
 # Ctimer
 
-A simple chess timer web app with:
+A simple room-based chess timer web app with:
 
 - Java (Spring Boot) backend with WebSocket updates
 - React + TypeScript frontend
-- Backend-authoritative clock switching logic
+- Backend-authoritative room and clock logic
 
 ## Project Structure
 
 - `backend/`: Gradle Spring Boot service
 - `frontend/`: React + TypeScript client (Vite)
 
-## How It Works
+## Room Flow
 
-- Both clocks are always visible to all players.
-- Only the active player's clock counts down.
-- When the active player clicks their clock:
-  - elapsed time is deducted from their remaining time
-  - increment is added (if configured)
-  - active turn switches to the opponent
-- Backend is the source of truth and pushes updates over WebSocket.
+1. Player 1 creates a room by selecting:
+   - initial minutes
+   - increment seconds
+   - preferred color (White or Black)
+2. Backend generates a 6-character room code.
+3. Player 2 joins using that code and is assigned the remaining color.
+4. When both players have joined, Black presses `Start`.
+5. Timer begins with White running first.
+
+Both players always see both clocks. Only the active player can press their own clock.
+
+## API Summary
+
+- `POST /api/rooms/create`
+- `POST /api/rooms/join`
+- `POST /api/rooms/start`
+- `GET /api/rooms/{roomCode}/state`
+- STOMP publish: `/app/clock.press`
+- STOMP subscribe: `/topic/room/{roomCode}/clock`
 
 ## Run Backend
 
@@ -39,10 +51,3 @@ npm run dev
 ```
 
 Frontend runs on `http://localhost:5173`.
-
-## Default Game Settings
-
-- Initial time: 5 minutes each side
-- Increment: 0 seconds
-
-You can reset the game from the UI with custom initial minutes and increment seconds.
