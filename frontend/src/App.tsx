@@ -12,7 +12,8 @@ type RoomSnapshot = {
   running: boolean;
   gameOver: boolean;
   readyToStart: boolean;
-  incrementMs: number;
+  whiteIncrementMs: number;
+  blackIncrementMs: number;
   whiteJoined: boolean;
   blackJoined: boolean;
   statusMessage: string;
@@ -87,13 +88,25 @@ async function readErrorMessage(response: Response): Promise<string> {
 /**
  * Creates a room with selected time controls and host color.
  */
-async function createRoom(initialMinutes: number, incrementSeconds: number, hostColor: PlayerColor): Promise<RoomSessionResponse> {
+async function createRoom(
+  whiteInitialMinutes: number,
+  blackInitialMinutes: number,
+  whiteIncrementSeconds: number,
+  blackIncrementSeconds: number,
+  hostColor: PlayerColor
+): Promise<RoomSessionResponse> {
   const response = await fetch(`${API_BASE_URL}/api/rooms/create`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({ initialMinutes, incrementSeconds, hostColor })
+    body: JSON.stringify({
+      whiteInitialMinutes,
+      blackInitialMinutes,
+      whiteIncrementSeconds,
+      blackIncrementSeconds,
+      hostColor
+    })
   });
 
   if (!response.ok) {
@@ -217,8 +230,10 @@ export default function App(): JSX.Element {
   const [nowMs, setNowMs] = useState<number>(Date.now());
   const [myColor, setMyColor] = useState<PlayerColor | null>(null);
   const [roomCode, setRoomCode] = useState<string>("");
-  const [createMinutes, setCreateMinutes] = useState<number>(5);
-  const [createIncrement, setCreateIncrement] = useState<number>(0);
+  const [whiteCreateMinutes, setWhiteCreateMinutes] = useState<number>(5);
+  const [blackCreateMinutes, setBlackCreateMinutes] = useState<number>(5);
+  const [whiteCreateIncrement, setWhiteCreateIncrement] = useState<number>(0);
+  const [blackCreateIncrement, setBlackCreateIncrement] = useState<number>(0);
   const [createColor, setCreateColor] = useState<PlayerColor>("WHITE");
   const [joinCode, setJoinCode] = useState<string>("");
   const [errorMessage, setErrorMessage] = useState<string>("");
@@ -348,7 +363,13 @@ export default function App(): JSX.Element {
 
   const handleCreateRoom = async (): Promise<void> => {
     try {
-      const response = await createRoom(createMinutes, createIncrement, createColor);
+      const response = await createRoom(
+        whiteCreateMinutes,
+        blackCreateMinutes,
+        whiteCreateIncrement,
+        blackCreateIncrement,
+        createColor
+      );
       setRoomCode(response.roomCode);
       setMyColor(response.assignedColor);
       setSnapshot(response.snapshot);
@@ -446,22 +467,42 @@ export default function App(): JSX.Element {
           <h2>Create Game</h2>
           <div className="row">
             <label>
-              Minutes
+              White Minutes
               <input
                 type="number"
                 min={1}
-                value={createMinutes}
-                onChange={(event) => setCreateMinutes(Number(event.target.value))}
+                value={whiteCreateMinutes}
+                onChange={(event) => setWhiteCreateMinutes(Number(event.target.value))}
               />
             </label>
 
             <label>
-              Increment (sec)
+              White Increment (sec)
               <input
                 type="number"
                 min={0}
-                value={createIncrement}
-                onChange={(event) => setCreateIncrement(Number(event.target.value))}
+                value={whiteCreateIncrement}
+                onChange={(event) => setWhiteCreateIncrement(Number(event.target.value))}
+              />
+            </label>
+
+            <label>
+              Black Minutes
+              <input
+                type="number"
+                min={1}
+                value={blackCreateMinutes}
+                onChange={(event) => setBlackCreateMinutes(Number(event.target.value))}
+              />
+            </label>
+
+            <label>
+              Black Increment (sec)
+              <input
+                type="number"
+                min={0}
+                value={blackCreateIncrement}
+                onChange={(event) => setBlackCreateIncrement(Number(event.target.value))}
               />
             </label>
 
@@ -525,6 +566,9 @@ export default function App(): JSX.Element {
 
       <section className="panel">
         <p>{snapshot.statusMessage}</p>
+        <p>
+          Increments: White +{Math.floor(snapshot.whiteIncrementMs / 1000)}s | Black +{Math.floor(snapshot.blackIncrementMs / 1000)}s
+        </p>
         <p>
           Players: White {snapshot.whiteJoined ? "joined" : "waiting"} | Black {snapshot.blackJoined ? "joined" : "waiting"}
         </p>

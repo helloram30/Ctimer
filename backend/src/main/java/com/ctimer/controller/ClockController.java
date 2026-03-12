@@ -53,8 +53,10 @@ public class ClockController {
     public RoomSessionResponse createRoom(@RequestBody CreateRoomRequest request) {
         final PlayerColor hostColor = PlayerColor.fromValue(request.hostColor());
         final RoomSessionResponse response = chessClockService.createRoom(
-                request.initialMinutes(),
-                request.incrementSeconds(),
+                request.whiteInitialMinutes(),
+                request.blackInitialMinutes(),
+                request.whiteIncrementSeconds(),
+                request.blackIncrementSeconds(),
                 hostColor
         );
         broadcastSnapshot(response.snapshot());

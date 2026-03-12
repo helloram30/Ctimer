@@ -11,7 +11,8 @@ package com.ctimer.model;
  * @param running true when the game is live
  * @param gameOver true when the room game is finished
  * @param readyToStart true when both players are present and start is allowed
- * @param incrementMs increment added after each valid press
+ * @param whiteIncrementMs increment added after each valid white press
+ * @param blackIncrementMs increment added after each valid black press
  * @param whiteJoined true when a white-side player is connected to the room
  * @param blackJoined true when a black-side player is connected to the room
  * @param statusMessage UI-friendly status details
@@ -25,7 +26,8 @@ public record RoomSnapshot(
         boolean running,
         boolean gameOver,
         boolean readyToStart,
-        long incrementMs,
+        long whiteIncrementMs,
+        long blackIncrementMs,
         boolean whiteJoined,
         boolean blackJoined,
         String statusMessage

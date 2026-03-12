@@ -37,25 +37,36 @@ public class ChessClockService {
     /**
      * Creates a room and assigns the requested creator color.
      *
-     * @param initialMinutes initial minutes per side
-     * @param incrementSeconds increment in seconds
+     * @param whiteInitialMinutes initial minutes for white
+     * @param blackInitialMinutes initial minutes for black
+     * @param whiteIncrementSeconds white increment in seconds
+     * @param blackIncrementSeconds black increment in seconds
      * @param hostColor creator-selected color
      * @return room session response containing assigned color and snapshot
      */
-    public synchronized RoomSessionResponse createRoom(long initialMinutes, long incrementSeconds, PlayerColor hostColor) {
+    public synchronized RoomSessionResponse createRoom(
+            long whiteInitialMinutes,
+            long blackInitialMinutes,
+            long whiteIncrementSeconds,
+            long blackIncrementSeconds,
+            PlayerColor hostColor
+    ) {
         final long now = System.currentTimeMillis();
-        final long safeMinutes = initialMinutes > 0 ? initialMinutes : DEFAULT_INITIAL_MINUTES;
-        final long safeIncrement = Math.max(incrementSeconds, DEFAULT_INCREMENT_SECONDS);
+        final long safeWhiteMinutes = whiteInitialMinutes > 0 ? whiteInitialMinutes : DEFAULT_INITIAL_MINUTES;
+        final long safeBlackMinutes = blackInitialMinutes > 0 ? blackInitialMinutes : DEFAULT_INITIAL_MINUTES;
+        final long safeWhiteIncrement = Math.max(whiteIncrementSeconds, DEFAULT_INCREMENT_SECONDS);
+        final long safeBlackIncrement = Math.max(blackIncrementSeconds, DEFAULT_INCREMENT_SECONDS);
         final String roomCode = generateRoomCode();
 
         final RoomState state = new RoomState();
         state.roomCode = roomCode;
-        state.whiteRemainingMs = safeMinutes * MILLIS_PER_MINUTE;
-        state.blackRemainingMs = safeMinutes * MILLIS_PER_MINUTE;
+        state.whiteRemainingMs = safeWhiteMinutes * MILLIS_PER_MINUTE;
+        state.blackRemainingMs = safeBlackMinutes * MILLIS_PER_MINUTE;
         state.activePlayer = PlayerColor.WHITE;
         state.lastSwitchEpochMs = now;
         state.running = false;
-        state.incrementMs = safeIncrement * MILLIS_PER_SECOND;
+        state.whiteIncrementMs = safeWhiteIncrement * MILLIS_PER_SECOND;
+        state.blackIncrementMs = safeBlackIncrement * MILLIS_PER_SECOND;
 
         if (hostColor == PlayerColor.WHITE) {
             state.whiteJoined = true;
@@ -216,9 +227,9 @@ public class ChessClockService {
         }
 
         if (player == PlayerColor.WHITE) {
-            state.whiteRemainingMs += state.incrementMs;
+            state.whiteRemainingMs += state.whiteIncrementMs;
         } else {
-            state.blackRemainingMs += state.incrementMs;
+            state.blackRemainingMs += state.blackIncrementMs;
         }
 
         state.activePlayer = player.opposite();
@@ -287,7 +298,8 @@ public class ChessClockService {
                 state.running,
                 state.gameOver,
                 state.whiteJoined && state.blackJoined && !state.running && !state.gameOver,
-                state.incrementMs,
+                state.whiteIncrementMs,
+                state.blackIncrementMs,
                 state.whiteJoined,
                 state.blackJoined,
                 state.statusMessage
@@ -356,7 +368,8 @@ public class ChessClockService {
         private long lastSwitchEpochMs;
         private boolean running;
         private boolean gameOver;
-        private long incrementMs;
+        private long whiteIncrementMs;
+        private long blackIncrementMs;
         private boolean whiteJoined;
         private boolean blackJoined;
         private String statusMessage;

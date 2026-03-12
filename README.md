@@ -14,8 +14,10 @@ A simple room-based chess timer web app with:
 ## Room Flow
 
 1. Player 1 creates a room by selecting:
-   - initial minutes
-   - increment seconds
+   - white initial minutes
+   - black initial minutes
+   - white increment seconds
+   - black increment seconds
    - preferred color (White or Black)
 2. Backend generates a 6-character room code.
 3. Player 2 joins using that code and is assigned the remaining color.
